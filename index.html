@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Night Path — Real Constellations</title>
+  <style>
+    :root {
+      --bg: #08090b;
+      --fg: #e8ecf2;
+      --muted: #9aa6b4;
+      --subtle: #6b7684;
+      --surface: rgba(18, 22, 28, 0.9);
+      --elevated: #1a2028;
+      --border: rgba(200, 212, 228, 0.14);
+      --border-strong: rgba(220, 228, 238, 0.28);
+      --accent: #dce4ee;
+      --accent-fg: #12161c;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+      overflow: hidden;
+    }
+    #sky {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      touch-action: none; cursor: pointer; display: block;
+    }
+    header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 2;
+      display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+      padding: max(1rem, env(safe-area-inset-top)) 1.25rem 0;
+      pointer-events: none;
+    }
+    .brand { max-width: 18rem; pointer-events: auto; }
+    .kicker {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+    }
+    h1 { font-size: clamp(1.7rem, 4vw, 2.35rem); font-weight: 500; letter-spacing: -0.03em; margin-top: 0.2rem; }
+    .blurb { margin-top: 0.4rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.85rem; line-height: 1.35; color: var(--muted); }
+    .starline { margin-top: 0.45rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; color: var(--fg); }
+    .starline span { color: var(--muted); font-weight: 400; }
+    .count {
+      pointer-events: auto; font-family: ui-monospace, Menlo, monospace; font-size: 0.75rem; color: var(--muted);
+      border: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(10px);
+      border-radius: 12px; padding: 0.45rem 0.7rem; white-space: nowrap;
+    }
+    .count em { color: var(--subtle); font-style: normal; }
+    .hint {
+      position: fixed; top: 42%; z-index: 2; max-width: 12.5rem; pointer-events: none;
+      border: 1px solid var(--border); background: rgba(18, 22, 28, 0.72);
+      backdrop-filter: blur(10px); border-radius: 14px; padding: 0.85rem 1rem;
+    }
+    .hint.left { left: 1.1rem; } .hint.right { right: 1.1rem; }
+    .hint strong { display: block; font-size: 1.05rem; font-weight: 500; }
+    .hint p { margin-top: 0.3rem; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; color: var(--muted); }
+    footer {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+      padding: 0 0.85rem max(0.75rem, env(safe-area-inset-bottom)); pointer-events: none;
+    }
+    .panel {
+      pointer-events: auto; max-width: 42rem; margin: 0 auto;
+      border: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(16px);
+      border-radius: 18px; padding: 0.7rem; box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .picks { display: flex; gap: 0.4rem; overflow-x: auto; scrollbar-width: none; }
+    .picks::-webkit-scrollbar { display: none; }
+    .picks button {
+      flex: 0 0 auto; min-height: 44px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--elevated); color: var(--muted); padding: 0.4rem 0.75rem; text-align: left;
+      cursor: pointer; font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    .picks button.on { background: var(--accent); color: var(--accent-fg); border-color: var(--border-strong); }
+    .picks button b { display: block; font-size: 0.85rem; font-weight: 600; }
+    .picks button small { display: block; margin-top: 0.1rem; font-size: 0.7rem; opacity: 0.75; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 0.65rem; padding: 0 0.15rem; }
+    .prog { flex: 1; min-width: 0; }
+    .prog-meta { display: flex; justify-content: space-between; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .bar { height: 6px; border-radius: 99px; background: #2a313a; overflow: hidden; }
+    .bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width 0.35s ease; }
+    .acts { display: flex; gap: 0.4rem; flex-shrink: 0; }
+    .acts button {
+      min-height: 40px; border-radius: 10px; border: 1px solid var(--border); background: var(--elevated);
+      color: var(--fg); padding: 0 0.8rem; cursor: pointer; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 0.8rem;
+    }
+    .acts button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--border-strong); }
+  </style>
+</head>
+<body>
+  <canvas id="sky"></canvas>
+  <header>
+    <div class="brand">
+      <div class="kicker">Real constellations</div>
+      <h1 id="title">Orion</h1>
+      <p class="blurb" id="blurb">The Hunter. Follow the bright star to draw the figure.</p>
+      <p class="starline" id="starline" hidden></p>
+    </div>
+    <div class="count" id="count">00 <em>/ 00</em></div>
+  </header>
+  <div class="hint left" id="hint">
+    <strong>Tap the bright star</strong>
+    <p id="hintSub">Start with Rigel</p>
+  </div>
+  <footer>
+    <div class="panel">
+      <div class="picks" id="picks" role="listbox" aria-label="Choose a constellation"></div>
+      <div class="row">
+        <div class="prog">
+          <div class="prog-meta"><span id="status">Orion</span><span id="frac">0/0</span></div>
+          <div class="bar"><i id="fill"></i></div>
+        </div>
+        <div class="acts">
+          <button type="button" id="mute" aria-label="Mute">Mute</button>
+          <button type="button" id="again">Restart</button>
+        </div>
+      </div>
+    </div>
+  </footer>
+  <script>
+    const CONSTELLATIONS = [
+      {
+        id: "orion", title: "Orion", subtitle: "The Hunter",
+        blurb: "Winter\u2019s hourglass \u2014 belt, shoulders and feet.",
+        play: ["rigel","saiph","alnitak","alnilam","mintaka","bellatrix","betelgeuse","meissa"],
+        edges: [["betelgeuse","meissa"],["meissa","bellatrix"],["betelgeuse","mintaka"],["bellatrix","alnitak"],["mintaka","alnilam"],["alnilam","alnitak"],["alnitak","saiph"],["mintaka","rigel"],["saiph","rigel"]],
+        stars: {
+          meissa:     { name: "Meissa",     x: 0.50, y: 0.26, mag: 3.5, midi: 72 },
+          betelgeuse: { name: "Betelgeuse", x: 0.36, y: 0.32, mag: 0.5, midi: 67 },
+          bellatrix:  { name: "Bellatrix",  x: 0.62, y: 0.31, mag: 1.6, midi: 71 },
+          mintaka:    { name: "Mintaka",    x: 0.57, y: 0.44, mag: 2.2, midi: 69 },
+          alnilam:    { name: "Alnilam",    x: 0.50, y: 0.46, mag: 1.7, midi: 64 },
+          alnitak:    { name: "Alnitak",    x: 0.43, y: 0.48, mag: 1.8, midi: 62 },
+          saiph:      { name: "Saiph",      x: 0.39, y: 0.60, mag: 2.1, midi: 60 },
+          rigel:      { name: "Rigel",      x: 0.61, y: 0.61, mag: 0.1, midi: 55, sustain: 1.15 }
+        }
+      },
+      {
+        id: "cassiopeia", title: "Cassiopeia", subtitle: "The Queen",
+        blurb: "The northern W \u2014 five bright throne stars.",
+        play: ["segin","ruchbah","gamma","schedar","caph"],
+        edges: [["segin","ruchbah"],["ruchbah","gamma"],["gamma","schedar"],["schedar","caph"]],
+        stars: {
+          segin:   { name: "Segin",   x: 0.22, y: 0.34, mag: 3.4, midi: 64 },
+          ruchbah: { name: "Ruchbah", x: 0.36, y: 0.46, mag: 2.7, midi: 67 },
+          gamma:   { name: "Navi",    x: 0.50, y: 0.33, mag: 2.2, midi: 71 },
+          schedar: { name: "Schedar", x: 0.64, y: 0.47, mag: 2.2, midi: 74 },
+          caph:    { name: "Caph",    x: 0.78, y: 0.36, mag: 2.3, midi: 76 }
+        }
+      },
+      {
+        id: "ursa-major", title: "Ursa Major", subtitle: "The Great Bear",
+        blurb: "The Big Dipper \u2014 bowl and handle.",
+        play: ["dubhe","merak","phecda","megrez","alioth","mizar","alkaid"],
+        edges: [["dubhe","merak"],["merak","phecda"],["phecda","megrez"],["megrez","dubhe"],["megrez","alioth"],["alioth","mizar"],["mizar","alkaid"]],
+        stars: {
+          dubhe:  { name: "Dubhe",  x: 0.34, y: 0.30, mag: 1.8, midi: 62 },
+          merak:  { name: "Merak",  x: 0.34, y: 0.42, mag: 2.4, midi: 64 },
+          phecda: { name: "Phecda", x: 0.48, y: 0.46, mag: 2.4, midi: 67 },
+          megrez: { name: "Megrez", x: 0.49, y: 0.34, mag: 3.3, midi: 69 },
+          alioth: { name: "Alioth", x: 0.60, y: 0.36, mag: 1.8, midi: 71 },
+          mizar:  { name: "Mizar",  x: 0.70, y: 0.40, mag: 2.2, midi: 74 },
+          alkaid: { name: "Alkaid", x: 0.80, y: 0.48, mag: 1.9, midi: 76 }
+        }
+      },
+      {
+        id: "cygnus", title: "Cygnus", subtitle: "The Swan",
+        blurb: "The Northern Cross flying down the Milky Way.",
+        play: ["deneb","sadr","gienah","delta","albireo"],
+        edges: [["deneb","sadr"],["sadr","albireo"],["gienah","sadr"],["sadr","delta"]],
+        stars: {
+          deneb:   { name: "Deneb",   x: 0.50, y: 0.26, mag: 1.3, midi: 74 },
+          sadr:    { name: "Sadr",    x: 0.50, y: 0.40, mag: 2.2, midi: 71 },
+          gienah:  { name: "Gienah",  x: 0.30, y: 0.42, mag: 2.5, midi: 67 },
+          delta:   { name: "Fawaris", x: 0.70, y: 0.38, mag: 2.9, midi: 69 },
+          albireo: { name: "Albireo", x: 0.50, y: 0.60, mag: 3.1, midi: 62, sustain: 1.2 }
+        }
+      },
+      {
+        id: "leo", title: "Leo", subtitle: "The Lion",
+        blurb: "The sickle of the mane, then the haunch triangle.",
+        play: ["regulus","eta","algieba","adhafera","rasalas","denebola","zosma","chertan"],
+        edges: [["regulus","eta"],["eta","algieba"],["algieba","adhafera"],["adhafera","rasalas"],["algieba","zosma"],["zosma","chertan"],["chertan","denebola"],["zosma","denebola"]],
+        stars: {
+          rasalas:  { name: "Rasalas",   x: 0.34, y: 0.28, mag: 4.0, midi: 76 },
+          adhafera: { name: "Adhafera",  x: 0.38, y: 0.34, mag: 3.4, midi: 74 },
+          algieba:  { name: "Algieba",   x: 0.40, y: 0.40, mag: 2.0, midi: 71 },
+          eta:      { name: "Al Jabhah", x: 0.36, y: 0.48, mag: 3.5, midi: 67 },
+          regulus:  { name: "Regulus",   x: 0.32, y: 0.56, mag: 1.4, midi: 62 },
+          zosma:    { name: "Zosma",     x: 0.58, y: 0.40, mag: 2.6, midi: 69 },
+          chertan:  { name: "Chertan",   x: 0.62, y: 0.50, mag: 3.3, midi: 64 },
+          denebola: { name: "Denebola",  x: 0.78, y: 0.46, mag: 2.1, midi: 72 }
+        }
+      }
+    ];
+
+    const canvas = document.getElementById("sky");
+    const ctx = canvas.getContext("2d");
+    let w = 0, h = 0, dpr = 1;
+    let audioCtx = null, muted = false;
+    let active = CONSTELLATIONS[0];
+    let lit = new Set();
+    let index = 0;
+    let complete = false;
+    let started = false;
+    let lastName = null;
+    const ripples = [];
+    const orbs = [];
+    const field = [];
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    for (let i = 0; i < 80; i++) {
+      let x = Math.random(), y = Math.random();
+      if (x > 0.16 && x < 0.84 && y > 0.18 && y < 0.68 && Math.random() < 0.5) {
+        x = Math.random() < 0.5 ? Math.random() * 0.14 : 0.86 + Math.random() * 0.14;
+      }
+      field.push({ x, y, r: 0.35 + Math.random() * 1.15, a: 0.1 + Math.random() * 0.32, tw: Math.random() * Math.PI * 2 });
+    }
+
+    function midiToHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+    async function ensureAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") await audioCtx.resume();
+    }
+    async function playMidi(midi, sustain) {
+      if (muted) return;
+      await ensureAudio();
+      const t = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const filt = audioCtx.createBiquadFilter();
+      osc.type = "sine";
+      osc.frequency.value = midiToHz(midi);
+      filt.type = "lowpass"; filt.frequency.value = 1800;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.85 * (sustain || 1));
+      osc.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 1.05 * (sustain || 1));
+    }
+    function resize() {
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      w = innerWidth; h = innerHeight;
+      canvas.width = Math.floor(w * dpr); canvas.height = Math.floor(h * dpr);
+      canvas.style.width = w + "px"; canvas.style.height = h + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    addEventListener("resize", resize); resize();
+    function starOf(id) { return active.stars[id]; }
+    function nextId() { return active.play[index]; }
+    function nextStar() { return starOf(nextId()); }
+    function spawn(x, y) {
+      const now = performance.now();
+      ripples.push({ x, y, born: now, life: reduced ? 900 : 2400 });
+      orbs.push({ x, y, born: now, life: reduced ? 700 : 1800, r: 8 });
+      if (ripples.length > 40) ripples.shift();
+      if (orbs.length > 40) orbs.shift();
+    }
+    function hitR() { return w < 480 ? 60 : 52; }
+    function reset() {
+      lit = new Set(); index = 0; complete = false; started = false; lastName = null;
+      ripples.length = 0; orbs.length = 0;
+      document.getElementById("again").classList.remove("primary");
+      document.getElementById("again").textContent = "Restart";
+      syncUI();
+    }
+    function select(id) {
+      active = CONSTELLATIONS.find(c => c.id === id) || CONSTELLATIONS[0];
+      reset();
+    }
+    function syncUI() {
+      const total = active.play.length;
+      const progress = Math.min(index, total);
+      document.getElementById("title").textContent = active.title;
+      document.getElementById("blurb").textContent = active.subtitle + ". " + active.blurb;
+      document.getElementById("count").innerHTML = String(progress).padStart(2,"0") + " <em>/ " + String(total).padStart(2,"0") + "</em>";
+      document.getElementById("frac").textContent = progress + "/" + total;
+      document.getElementById("fill").style.width = (progress / total * 100) + "%";
+      const nxt = nextStar();
+      document.getElementById("status").textContent = complete ? active.title + " \u00b7 complete" : active.title + (nxt ? " \u00b7 " + nxt.name : "");
+      const line = document.getElementById("starline");
+      if (lastName && !complete) {
+        line.hidden = false;
+        line.innerHTML = lastName + (nxt ? "<span> \u00b7 next: " + nxt.name + "</span>" : "");
+      } else line.hidden = true;
+      const hint = document.getElementById("hint");
+      if (!started && !complete) {
+        hint.hidden = false;
+        const first = starOf(active.play[0]);
+        hint.className = "hint " + ((first && first.x >= 0.5) ? "left" : "right");
+        document.getElementById("hintSub").textContent = nxt ? "Start with " + nxt.name : "Follow the light";
+      } else hint.hidden = true;
+      document.querySelectorAll(".picks button").forEach(b => b.classList.toggle("on", b.dataset.id === active.id));
+    }
+    function tapStar() {
+      if (complete) return;
+      const id = nextId(); const s = starOf(id); if (!s) return;
+      spawn(s.x * w, s.y * h); lit.add(id); lastName = s.name; started = true;
+      playMidi(s.midi, s.sustain || 1);
+      if (index + 1 >= active.play.length) {
+        index = active.play.length; complete = true;
+        document.getElementById("again").classList.add("primary");
+        document.getElementById("again").textContent = "Again";
+      } else index += 1;
+      syncUI();
+    }
+    canvas.addEventListener("pointerdown", (e) => {
+      if (complete) return;
+      const r = canvas.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      const s = nextStar(); if (!s) return;
+      if (Math.hypot(x - s.x * w, y - s.y * h) <= hitR()) tapStar();
+    });
+    CONSTELLATIONS.forEach(c => {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.id = c.id;
+      b.innerHTML = "<b>" + c.title + "</b><small>" + c.subtitle + "</small>";
+      b.addEventListener("click", () => select(c.id));
+      document.getElementById("picks").appendChild(b);
+    });
+    document.getElementById("mute").addEventListener("click", () => {
+      muted = !muted;
+      document.getElementById("mute").textContent = muted ? "Unmute" : "Mute";
+    });
+    document.getElementById("again").addEventListener("click", reset);
+    syncUI();
+    function draw(t) {
+      ctx.clearRect(0, 0, w, h);
+      const bg = ctx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.5, Math.max(w, h) * 0.78);
+      bg.addColorStop(0, "rgba(26,30,38,0.95)"); bg.addColorStop(0.5, "rgba(12,14,18,0.98)"); bg.addColorStop(1, "rgba(8,9,11,1)");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+      for (const s of field) {
+        const tw = reduced ? s.a : s.a * (0.65 + 0.35 * Math.sin(t * 0.0012 + s.tw));
+        ctx.beginPath(); ctx.fillStyle = "rgba(232,236,242," + tw + ")"; ctx.arc(s.x * w, s.y * h, s.r, 0, Math.PI * 2); ctx.fill();
+      }
+      const haze = ctx.createLinearGradient(0, h * 0.72, 0, h);
+      haze.addColorStop(0, "rgba(168,180,196,0)"); haze.addColorStop(1, "rgba(168,180,196,0.08)");
+      ctx.fillStyle = haze; ctx.fillRect(0, h * 0.72, w, h * 0.28);
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
+      for (const pair of active.edges) {
+        if (!lit.has(pair[0]) || !lit.has(pair[1])) continue;
+        const a = starOf(pair[0]), b = starOf(pair[1]);
+        ctx.beginPath();
+        ctx.strokeStyle = complete ? "rgba(220,228,238,0.55)" : "rgba(200,212,228,0.4)";
+        ctx.lineWidth = complete ? 1.6 : 1.3;
+        ctx.moveTo(a.x * w, a.y * h); ctx.lineTo(b.x * w, b.y * h); ctx.stroke();
+      }
+      for (const id of Object.keys(active.stars)) {
+        if (!lit.has(id)) continue;
+        const s = starOf(id); const x = s.x * w, y = s.y * h;
+        const size = 11 + Math.max(0, 2.5 - s.mag) * 3;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, size);
+        g.addColorStop(0, "rgba(255,255,255,0.95)"); g.addColorStop(0.35, "rgba(230,236,244,0.55)"); g.addColorStop(1, "rgba(200,212,228,0)");
+        ctx.beginPath(); ctx.fillStyle = g; ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.fillStyle = "rgba(255,255,255,0.98)";
+        ctx.arc(x, y, 2.4 + Math.max(0, 1.8 - s.mag) * 0.6, 0, Math.PI * 2); ctx.fill();
+      }
+      if (!complete) {
+        const g = nextStar();
+        if (g) {
+          const gx = g.x * w, gy = g.y * h;
+          const pulse = reduced ? 1 : 0.72 + 0.28 * Math.sin(t * 0.0045);
+          const outer = 24 + pulse * 20;
+          const aura = ctx.createRadialGradient(gx, gy, 0, gx, gy, outer * 2.3);
+          aura.addColorStop(0, "rgba(255,255,255," + (0.6 * pulse) + ")");
+          aura.addColorStop(0.35, "rgba(214,224,236," + (0.25 * pulse) + ")");
+          aura.addColorStop(1, "rgba(200,212,228,0)");
+          ctx.beginPath(); ctx.fillStyle = aura; ctx.arc(gx, gy, outer * 2.3, 0, Math.PI * 2); ctx.fill();
+          for (let i = 0; i < 2; i++) {
+            const age = ((t * 0.001 + i * 0.5) % 1.4) / 1.4;
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(235,240,248," + ((1 - age) * 0.6) + ")";
+            ctx.lineWidth = 1.6 * (1 - age * 0.4);
+            ctx.arc(gx, gy, 12 + age * 40, 0, Math.PI * 2); ctx.stroke();
+          }
+          ctx.beginPath(); ctx.fillStyle = "#fff"; ctx.arc(gx, gy, 3.2, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        const pulse = reduced ? 0.5 : 0.4 + 0.15 * Math.sin(t * 0.0025);
+        const g = ctx.createRadialGradient(w * 0.5, h * 0.4, 0, w * 0.5, h * 0.4, Math.min(w, h) * 0.32);
+        g.addColorStop(0, "rgba(220,228,238," + (0.08 * pulse) + ")"); g.addColorStop(1, "rgba(200,212,228,0)");
+        ctx.beginPath(); ctx.fillStyle = g; ctx.arc(w * 0.5, h * 0.4, Math.min(w, h) * 0.32, 0, Math.PI * 2); ctx.fill();
+      }
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i]; const age = (t - r.born) / r.life;
+        if (age >= 1) { ripples.splice(i, 1); continue; }
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(212,220,232," + ((1 - age) * 0.65) + ")";
+        ctx.lineWidth = 1.4 * (1 - age * 0.45);
+        ctx.arc(r.x, r.y, 14 + age * 150, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (let i = orbs.length - 1; i >= 0; i--) {
+        const o = orbs[i]; const age = (t - o.born) / o.life;
+        if (age >= 1) { orbs.splice(i, 1); continue; }
+        const glow = o.r * (2.8 + (1 - age) * 1.4) * 1.25;
+        const grad = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, glow);
+        grad.addColorStop(0, "rgba(244,246,250," + ((1 - age) * 0.95) + ")");
+        grad.addColorStop(0.28, "rgba(210,220,232," + ((1 - age) * 0.55) + ")");
+        grad.addColorStop(1, "rgba(200,212,228,0)");
+        ctx.beginPath(); ctx.fillStyle = grad; ctx.arc(o.x, o.y, glow, 0, Math.PI * 2); ctx.fill();
+      }
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  </script>
+</body>
+</html>
